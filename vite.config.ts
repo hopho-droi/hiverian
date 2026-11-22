@@ -24,7 +24,7 @@ export default defineConfig(() => {
           name: 'Maison Hiveria — Boutique 3D de Noël',
           short_name: 'Hiveria 3D',
           description:
-            'Boutique virtuelle 3D de décoration de Noël : cinq rayons immersifs, fiches produits et catalogue interactif.',
+            'Boutique virtuelle 3D de décoration de Noël : huit rayons immersifs, fiches produits et catalogue interactif.',
           lang: 'fr',
           theme_color: '#0B2B22',
           background_color: '#071E18',
@@ -97,7 +97,7 @@ export default defineConfig(() => {
               options: {
                 cacheName: 'boutique-images-cache',
                 expiration: {
-                  maxEntries: 60,
+                  maxEntries: 120,
                   maxAgeSeconds: 60 * 60 * 24 * 30,
                 },
                 cacheableResponse: {

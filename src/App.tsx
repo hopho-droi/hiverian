@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, LayoutGrid } from 'lucide-react';
+import { ChevronDown, ChevronUp, LayoutGrid, ShoppingBag } from 'lucide-react';
 import {
+  AMAZON_STORE_URL,
   BRAND_NAME,
   CATALOG,
   SEASONAL_BANNER_LABEL,
@@ -173,19 +174,30 @@ export default function App() {
         <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
           <PWAInstallButton />
 
+          <a
+            href={AMAZON_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            className="inline-flex min-h-[44px] items-center gap-1.5 border border-[#E5B85B]/50 bg-gradient-to-r from-[#9B1B26] to-[#B91C1C] px-3 py-2 text-xs font-semibold text-[#FFF9F0] shadow-[0_8px_24px_rgba(155,27,38,0.45)] transition-all active:scale-[0.98] hover:brightness-110 whitespace-nowrap shrink-0 sm:px-3.5"
+          >
+            <ShoppingBag className="h-3.5 w-3.5 text-[#E5B85B]" aria-hidden="true" />
+            <span className="sm:hidden">Amazon</span>
+            <span className="hidden sm:inline">Boutique Amazon</span>
+          </a>
+
           <button
             type="button"
             onClick={() => setIsCatalogOpen(true)}
             className="inline-flex min-h-[44px] items-center gap-1.5 border border-[#E5B85B]/50 bg-[#0B2B22]/95 px-3 py-2 text-xs font-semibold text-[#FFF9F0] shadow-[0_8px_24px_rgba(3,14,11,0.45)] transition-colors active:bg-[#123D31] hover:border-[#E5B85B] hover:text-[#E5B85B] whitespace-nowrap shrink-0 sm:px-3.5"
           >
             <LayoutGrid className="h-3.5 w-3.5 text-[#E5B85B]" aria-hidden="true" />
-            <span className="sm:hidden">Catalogue 2D</span>
+            <span className="sm:hidden">Catalogue</span>
             <span className="hidden sm:inline">Vue Catalogue 2D</span>
           </button>
         </div>
       </header>
 
-      {/* Barre flottante des 5 rayons (repliable) */}
+      {/* Barre flottante des rayons (repliable) */}
       <div
         className={`safe-bottom pointer-events-none fixed inset-x-0 bottom-0 z-20 flex flex-col items-center px-3 transition-transform duration-200 sm:pb-5 ${
           selectedProduct
@@ -219,8 +231,8 @@ export default function App() {
 
         {!isDockCollapsed && (
           <nav
-            aria-label="Navigation des cinq rayons de la boutique"
-            className="no-scrollbar pointer-events-auto flex max-w-[min(920px,96vw)] snap-x snap-mandatory scroll-px-2 items-center gap-1 overflow-x-auto border border-[#E5B85B]/45 bg-[#0B2B22]/95 p-1.5 shadow-[0_14px_38px_rgba(3,14,11,0.7)]"
+            aria-label="Navigation des rayons de la boutique"
+            className="no-scrollbar pointer-events-auto flex max-w-[min(1080px,96vw)] snap-x snap-mandatory scroll-px-2 items-center gap-1 overflow-x-auto border border-[#E5B85B]/45 bg-[#0B2B22]/95 p-1.5 shadow-[0_14px_38px_rgba(3,14,11,0.7)]"
           >
             {CATALOG.map((aisle) => {
               const isActive = aisle.slug === activeAisleSlug;

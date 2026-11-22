@@ -3,44 +3,57 @@ import type { ProductItem } from '../catalog';
 
 export interface BuiltProductAsset {
   group: THREE.Group;
+  /** The 2.5D cutout mesh (rotates subtly toward camera on Y axis for realistic depth) */
+  facingPivot: THREE.Group;
   collider: THREE.Mesh;
   /** Local anchor offset above plinth/shelf for hotspot & focus camera */
   hotspotLocalOffset: THREE.Vector3;
-  /** Loads the high-resolution product texture on demand (idempotent) */
+  /** Loads the transparent cutout / product texture on demand (idempotent) */
   loadTexture: () => void;
-  /** Optional disposables owned specifically by this product showcase */
+  /** Disposables owned specifically by this product showcase */
   ownDisposables: Array<{ dispose: () => void }>;
 }
 
 export interface SharedProductMaterials {
   brushedGold: THREE.MeshPhysicalMaterial;
-  antiqueBrass: THREE.MeshStandardMaterial;
   matteWalnut: THREE.MeshStandardMaterial;
-  darkHousing: THREE.MeshStandardMaterial;
-  warmEmissive: THREE.MeshStandardMaterial;
-  vitrineGlass: THREE.MeshPhysicalMaterial;
+  contactShadow: THREE.MeshBasicMaterial;
 }
 
 /**
- * Calibrated luxury PBR material pool shared across all 20 architectural
- * showroom vitrines to maintain 60 FPS on mobile GPUs.
+ * Creates a soft elliptical contact shadow texture placed directly under each
+ * cutout product so it appears physically grounded on the wooden tables & shelves.
+ */
+function createGroundContactShadowTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+
+  const grad = ctx.createRadialGradient(128, 128, 14, 128, 128, 124);
+  grad.addColorStop(0, 'rgba(4, 10, 8, 0.78)');
+  grad.addColorStop(0.45, 'rgba(4, 10, 8, 0.44)');
+  grad.addColorStop(0.78, 'rgba(4, 10, 8, 0.14)');
+  grad.addColorStop(1, 'rgba(4, 10, 8, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 256);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/**
+ * Shared PBR material pool across all 20 showroom products to keep 60 FPS on Android.
  */
 export function createSharedProductMaterials(isSoftwareGl: boolean): SharedProductMaterials {
   const brushedGold = new THREE.MeshPhysicalMaterial({
-    color: 0xd9b66c,
-    metalness: 0.92,
-    roughness: 0.22,
-    clearcoat: 0.35,
-    clearcoatRoughness: 0.22,
-    anisotropy: isSoftwareGl ? 0 : 0.78,
-    envMapIntensity: 1.35,
-  });
-
-  const antiqueBrass = new THREE.MeshStandardMaterial({
-    color: 0xb68f48,
-    metalness: 0.86,
-    roughness: 0.36,
-    envMapIntensity: 1.15,
+    color: 0xe5b85b,
+    metalness: 0.9,
+    roughness: 0.24,
+    clearcoat: 0.3,
+    anisotropy: isSoftwareGl ? 0 : 0.65,
+    envMapIntensity: 1.25,
   });
 
   const matteWalnut = new THREE.MeshStandardMaterial({
@@ -49,46 +62,24 @@ export function createSharedProductMaterials(isSoftwareGl: boolean): SharedProdu
     roughness: 0.76,
   });
 
-  const darkHousing = new THREE.MeshStandardMaterial({
-    color: 0x16110e,
-    metalness: 0.08,
-    roughness: 0.84,
-  });
-
-  const warmEmissive = new THREE.MeshStandardMaterial({
-    color: 0xffebc0,
-    emissive: 0xffc062,
-    emissiveIntensity: 2.1,
-    roughness: 0.2,
-    metalness: 0.1,
-  });
-
-  // Subtle museum anti-reflective optical glass sitting ahead of each studio photograph
-  const vitrineGlass = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
-    metalness: 0.05,
-    roughness: 0.05,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.04,
+  const shadowTex = createGroundContactShadowTexture();
+  const contactShadow = new THREE.MeshBasicMaterial({
+    map: shadowTex,
     transparent: true,
-    opacity: 0.14,
+    opacity: 0.85,
     depthWrite: false,
-    envMapIntensity: 1.45,
   });
 
   return {
     brushedGold,
-    antiqueBrass,
     matteWalnut,
-    darkHousing,
-    warmEmissive,
-    vitrineGlass,
+    contactShadow,
   };
 }
 
 /**
- * Creates a clean engraved brass plaque CanvasTexture for the base of each vitrine
- * displaying the product's indicative price and luxury curation badge.
+ * Creates a discreet luxury boutique tent-card price plaque resting on the table
+ * in front of each product (spruce green, velvet crimson badge, champagne gold price).
  */
 function createPlaqueTexture(
   price: string,
@@ -107,15 +98,14 @@ function createPlaqueTexture(
   ctx.lineWidth = 3;
   ctx.strokeRect(5, 5, 502, 86);
 
-  // Velvet Christmas crimson accent band behind badge text
   ctx.fillStyle = '#9B1B26';
-  ctx.fillRect(18, 22, 226, 52);
+  ctx.fillRect(16, 20, 232, 56);
 
   ctx.fillStyle = '#FFF9F0';
   ctx.font = '600 21px "Plus Jakarta Sans", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(badge.toUpperCase(), 131, 48);
+  ctx.fillText(badge.toUpperCase(), 132, 48);
 
   ctx.fillStyle = '#E5B85B';
   ctx.font = '600 32px "Playfair Display", Georgia, serif';
@@ -129,64 +119,44 @@ function createPlaqueTexture(
 }
 
 /**
- * Generates an architectural spruce-and-gold fallback texture in case `imageUrl`
- * is empty or unavailable in src/catalog.ts.
+ * Subtle transparent placeholder silhouette shown for a split second while a
+ * product cutout texture streams in.
  */
-function createPhotoFallbackTexture(
-  title: string,
-  maxAnisotropy: number
-): THREE.CanvasTexture {
+function createLoadingPlaceholderTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 384;
+  canvas.width = 128;
+  canvas.height = 128;
   const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, 128, 128);
 
-  const grad = ctx.createLinearGradient(0, 0, 512, 384);
-  grad.addColorStop(0, '#071E18');
-  grad.addColorStop(1, '#0E352A');
+  const grad = ctx.createRadialGradient(64, 72, 6, 64, 72, 48);
+  grad.addColorStop(0, 'rgba(229, 184, 91, 0.22)');
+  grad.addColorStop(1, 'rgba(229, 184, 91, 0)');
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 512, 384);
-
-  ctx.strokeStyle = 'rgba(229, 184, 91, 0.5)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(18, 18, 476, 348);
-
-  ctx.fillStyle = '#9B1B26';
-  ctx.fillRect(176, 128, 160, 4);
-
-  ctx.fillStyle = '#E5B85B';
-  ctx.font = '600 19px "Plus Jakarta Sans", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('COLLECTION NOËL', 256, 166);
-
-  ctx.fillStyle = '#FFF9F0';
-  ctx.font = '600 25px "Playfair Display", Georgia, serif';
-  const shortTitle = title.length > 30 ? `${title.slice(0, 29)}…` : title;
-  ctx.fillText(shortTitle, 256, 216);
+  ctx.fillRect(0, 0, 128, 128);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = maxAnisotropy;
   return tex;
 }
 
 /**
- * Builds an Obsess / Emperia-grade photorealistic 3D architectural showcase vitrine
- * (10–12 real PBR parts: walnut stand, brushed gold feet & mitered bezel, backlit LED
- * shadowbox housing, high-res photorealistic studio plate, optical front glass pane,
- * overhanging brass gallery picture lamp on hero pieces, and engraved price plaque).
- *
- * Pivots strictly at bottom-center (y = 0) so every showcase rests flush on its shelf/plinth.
+ * Builds a frameless 2.5D photorealistic product cutout resting directly on the
+ * wooden tables, shelves, and central plinth of the 3D Christmas chalet:
+ * - Transparent RGBA WebP cutout bottom-aligned flush with y = 0
+ * - Auto-fitted to each cutout's real aspect ratio on load
+ * - Soft contact shadow underneath on the timber surface
+ * - Miniature museum brass price tent-card in front of the base
+ * - Subtle camera-facing pivot so the object retains realistic presence as you orbit
  */
-export function buildProductVitrine(
+export function buildProductShowcase(
   product: ProductItem,
   mats: SharedProductMaterials,
   textureLoader: THREE.TextureLoader,
-  maxAnisotropy: number,
-  isSoftwareGl: boolean
+  maxAnisotropy: number
 ): BuiltProductAsset {
   const group = new THREE.Group();
-  group.name = `vitrine_${product.id}`;
+  group.name = `product_${product.id}`;
   const ownDisposables: Array<{ dispose: () => void }> = [];
 
   const track = <T extends { dispose: () => void }>(item: T): T => {
@@ -194,113 +164,110 @@ export function buildProductVitrine(
     return item;
   };
 
-  const { width, height, tiltX = 0 } = product.shelfSlot;
+  const { width: maxSlotW, height: maxSlotH } = product.shelfSlot;
   const isHero = product.isHero;
-  const frameThick = 0.036;
-  const boxDepth = 0.095;
-  const baseHeight = isHero ? 0.055 : 0.04;
+  const visualSourceUrl = product.cutoutUrl || product.imageUrl;
 
-  // 1. Grounded walnut & brass architectural stand foot (y = 0)
-  const standBase = new THREE.Mesh(
-    track(new THREE.BoxGeometry(width * 0.72, baseHeight, 0.2)),
-    mats.matteWalnut
-  );
-  standBase.position.y = baseHeight / 2;
-  standBase.castShadow = !isSoftwareGl;
-  standBase.receiveShadow = true;
-  group.add(standBase);
+  // Target display box inside the shelf/plinth slot (generous presence, realistic scale)
+  const targetMaxW = isHero ? 1.18 : maxSlotW * 0.96;
+  const targetMaxH = isHero ? 1.24 : maxSlotH * 1.06;
 
-  const standBrassTrim = new THREE.Mesh(
-    track(new THREE.BoxGeometry(width * 0.74, 0.012, 0.21)),
-    mats.brushedGold
-  );
-  standBrassTrim.position.y = baseHeight + 0.006;
-  group.add(standBrassTrim);
+  // 1. Soft grounded contact shadow resting directly on the wood surface (y = 0.004)
+  const shadowGeo = track(new THREE.PlaneGeometry(1, 1));
+  const contactShadowMesh = new THREE.Mesh(shadowGeo, mats.contactShadow);
+  contactShadowMesh.rotation.x = -Math.PI / 2;
+  contactShadowMesh.position.set(0, 0.005, 0.02);
+  contactShadowMesh.scale.set(targetMaxW * 0.84, isHero ? 0.62 : 0.46, 1);
+  contactShadowMesh.renderOrder = 1;
+  group.add(contactShadowMesh);
 
-  // Twin vertical brass risers lifting the backlit vitrine above the walnut plinth
-  const riserH = isHero ? 0.065 : 0.045;
-  const riserGeo = track(new THREE.CylinderGeometry(0.014, 0.016, riserH, 12));
-  [-width * 0.26, width * 0.26].forEach((rx) => {
-    const riser = new THREE.Mesh(riserGeo, mats.brushedGold);
-    riser.position.set(rx, baseHeight + riserH / 2, 0);
-    group.add(riser);
-  });
+  // 2. Camera-facing pivot holding the frameless 2.5D cutout plane
+  const facingPivot = new THREE.Group();
+  group.add(facingPivot);
 
-  // Tilted showcase assembly pivoting just above the brass risers
-  const frameAssembly = new THREE.Group();
-  const centerY = baseHeight + riserH + height / 2;
-  frameAssembly.position.set(0, centerY, 0);
-  frameAssembly.rotation.x = tiltX;
-  group.add(frameAssembly);
-
-  // 2. Recessed dark architectural shadowbox backing
-  const backing = new THREE.Mesh(
-    track(new THREE.BoxGeometry(width, height, boxDepth)),
-    mats.darkHousing
-  );
-  backing.position.z = -boxDepth / 2;
-  backing.castShadow = !isSoftwareGl;
-  backing.receiveShadow = true;
-  frameAssembly.add(backing);
-
-  // 3. Four mitered brushed champagne-gold outer frame rails (real 3D depth)
-  const topRail = new THREE.Mesh(
-    track(new THREE.BoxGeometry(width + frameThick * 2, frameThick, boxDepth + 0.028)),
-    mats.brushedGold
-  );
-  topRail.position.set(0, height / 2 + frameThick / 2, -boxDepth / 2 + 0.012);
-  frameAssembly.add(topRail);
-
-  const bottomRail = new THREE.Mesh(
-    track(new THREE.BoxGeometry(width + frameThick * 2, frameThick, boxDepth + 0.028)),
-    mats.brushedGold
-  );
-  bottomRail.position.set(0, -height / 2 - frameThick / 2, -boxDepth / 2 + 0.012);
-  frameAssembly.add(bottomRail);
-
-  const leftRail = new THREE.Mesh(
-    track(new THREE.BoxGeometry(frameThick, height, boxDepth + 0.028)),
-    mats.brushedGold
-  );
-  leftRail.position.set(-width / 2 - frameThick / 2, 0, -boxDepth / 2 + 0.012);
-  frameAssembly.add(leftRail);
-
-  const rightRail = new THREE.Mesh(
-    track(new THREE.BoxGeometry(frameThick, height, boxDepth + 0.028)),
-    mats.brushedGold
-  );
-  rightRail.position.set(width / 2 + frameThick / 2, 0, -boxDepth / 2 + 0.012);
-  frameAssembly.add(rightRail);
-
-  // 4. Recessed inner 2700K golden LED cove strip illuminating the photo plate
-  const innerLedTop = new THREE.Mesh(
-    track(new THREE.BoxGeometry(width - 0.06, 0.012, 0.012)),
-    mats.warmEmissive
-  );
-  innerLedTop.position.set(0, height / 2 - 0.01, 0.008);
-  frameAssembly.add(innerLedTop);
-
-  // 5. High-resolution photorealistic studio product plate (mapped directly from catalog imageUrl)
-  const fallbackTex = track(createPhotoFallbackTexture(product.title, maxAnisotropy));
-  const photoMat = track(
+  const placeholderTex = track(createLoadingPlaceholderTexture());
+  const cutoutMat = track(
     new THREE.MeshStandardMaterial({
-      map: fallbackTex,
-      emissiveMap: fallbackTex,
-      emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 0.42,
-      roughness: 0.34,
+      map: placeholderTex,
+      emissiveMap: placeholderTex,
+      emissive: new THREE.Color(0xfff5e4),
+      emissiveIntensity: 0.62,
+      roughness: 0.62,
       metalness: 0.04,
+      transparent: true,
+      alphaTest: 0.015,
+      depthWrite: false,
+      side: THREE.DoubleSide,
     })
   );
 
+  // Unit 1x1 plane scaled dynamically to the cutout's true cropped aspect ratio
+  const cutoutGeo = track(new THREE.PlaneGeometry(1, 1));
+  const cutoutMesh = new THREE.Mesh(cutoutGeo, cutoutMat);
+  const initialW = targetMaxW * 0.78;
+  const initialH = targetMaxH * 0.88;
+  cutoutMesh.scale.set(initialW, initialH, 1);
+  cutoutMesh.position.set(0, initialH * 0.5, 0);
+  // Hero front cutout always renders cleanly above rear shelf cutouts
+  cutoutMesh.renderOrder = isHero ? 4 : 2;
+  facingPivot.add(cutoutMesh);
+
+  // 3. Discreet luxury engraved brass & spruce price tent-card resting on the table
+  const plaqueTex = track(createPlaqueTexture(product.price, product.badge, maxAnisotropy));
+  const plaqueMat = track(
+    new THREE.MeshStandardMaterial({
+      map: plaqueTex,
+      emissiveMap: plaqueTex,
+      emissive: new THREE.Color(0xfff1d4),
+      emissiveIntensity: 0.34,
+      roughness: 0.34,
+      metalness: 0.16,
+    })
+  );
+  const plaqueW = isHero ? 0.38 : 0.34;
+  const plaqueH = 0.072;
+  const plaqueZ = isHero ? 0.34 : 0.25;
+
+  const plaqueHolder = new THREE.Group();
+  plaqueHolder.position.set(0, 0.032, plaqueZ);
+  plaqueHolder.rotation.x = -0.44;
+  group.add(plaqueHolder);
+
+  const plaqueBacking = new THREE.Mesh(
+    track(new THREE.BoxGeometry(plaqueW + 0.014, plaqueH + 0.012, 0.012)),
+    mats.brushedGold
+  );
+  plaqueHolder.add(plaqueBacking);
+
+  const plaqueFace = new THREE.Mesh(
+    track(new THREE.PlaneGeometry(plaqueW, plaqueH)),
+    plaqueMat
+  );
+  plaqueFace.position.z = 0.007;
+  plaqueHolder.add(plaqueFace);
+
+  // 4. Invisible touch collider on layer 1 sized cleanly to the object
+  const colliderGeo = track(new THREE.BoxGeometry(1, 1, 0.38));
+  const colliderMat = track(new THREE.MeshBasicMaterial({ visible: false }));
+  const collider = new THREE.Mesh(colliderGeo, colliderMat);
+  collider.scale.set(initialW + 0.14, initialH + 0.12, 1);
+  collider.position.set(0, initialH * 0.5, 0.04);
+  collider.layers.set(1);
+  collider.userData.productId = product.id;
+  collider.userData.aisleId = product.aisleId;
+  group.add(collider);
+
+  const hotspotLocalOffset = new THREE.Vector3(0, initialH * 0.28 + 0.06, 0.14);
+
+  // 5. On-demand texture loader that preserves exact natural aspect ratio & flush y = 0 placement
   let textureRequested = false;
   const loadTexture = () => {
     if (textureRequested) return;
     textureRequested = true;
-    if (!product.imageUrl || !product.imageUrl.trim()) return;
+    if (!visualSourceUrl || !visualSourceUrl.trim()) return;
 
     textureLoader.load(
-      product.imageUrl,
+      visualSourceUrl,
       (loadedTex) => {
         loadedTex.colorSpace = THREE.SRGBColorSpace;
         loadedTex.anisotropy = maxAnisotropy;
@@ -308,93 +275,48 @@ export function buildProductVitrine(
         loadedTex.magFilter = THREE.LinearFilter;
         loadedTex.needsUpdate = true;
         ownDisposables.push(loadedTex);
-        photoMat.map = loadedTex;
-        photoMat.emissiveMap = loadedTex;
-        photoMat.needsUpdate = true;
+
+        // Compute exact fitted width & height from the real cropped cutout dimensions
+        const img = loadedTex.image as { width?: number; height?: number } | undefined;
+        const aspect =
+          img && img.width && img.height && img.height > 0 ? img.width / img.height : 1;
+
+        let fitH = targetMaxH;
+        let fitW = fitH * aspect;
+        if (fitW > targetMaxW) {
+          fitW = targetMaxW;
+          fitH = fitW / aspect;
+        }
+
+        cutoutMesh.scale.set(fitW, fitH, 1);
+        // Bottom-most opaque pixel sits strictly at y = 0 (flush on the table/shelf)
+        cutoutMesh.position.set(0, fitH * 0.5, 0);
+
+        contactShadowMesh.scale.set(
+          Math.max(0.36, Math.min(targetMaxW * 0.96, fitW * 0.92)),
+          isHero ? 0.58 : 0.42,
+          1
+        );
+
+        collider.scale.set(Math.max(0.55, fitW + 0.14), Math.max(0.55, fitH + 0.12), 1);
+        collider.position.set(0, fitH * 0.5, 0.04);
+
+        cutoutMat.map = loadedTex;
+        cutoutMat.emissiveMap = loadedTex;
+        cutoutMat.needsUpdate = true;
       },
       undefined,
       () => {
-        // Keep clean fallback texture on load failure
+        // Silent fallback if URL is unreachable
       }
     );
   };
 
-  const photoPlane = new THREE.Mesh(
-    track(new THREE.PlaneGeometry(width - 0.012, height - 0.012)),
-    photoMat
-  );
-  photoPlane.position.z = 0.004;
-  frameAssembly.add(photoPlane);
-
-  // 6. Front optical anti-reflective glass pane catching subtle real-time specular reflections
-  const glassPane = new THREE.Mesh(
-    track(new THREE.PlaneGeometry(width, height)),
-    mats.vitrineGlass
-  );
-  glassPane.position.z = 0.022;
-  glassPane.renderOrder = 2;
-  frameAssembly.add(glassPane);
-
-  // 7. Gallery museum picture-light bar above the hero centerpiece vitrine
-  if (isHero) {
-    const armGeo = track(new THREE.CylinderGeometry(0.007, 0.007, 0.14, 8));
-    [-0.24, 0.24].forEach((ax) => {
-      const arm = new THREE.Mesh(armGeo, mats.antiqueBrass);
-      arm.rotation.x = Math.PI / 2;
-      arm.position.set(ax, height / 2 + frameThick + 0.025, 0.04);
-      frameAssembly.add(arm);
-    });
-
-    const lampHood = new THREE.Mesh(
-      track(new THREE.CylinderGeometry(0.018, 0.022, width * 0.62, 12)),
-      mats.brushedGold
-    );
-    lampHood.rotation.z = Math.PI / 2;
-    lampHood.position.set(0, height / 2 + frameThick + 0.03, 0.11);
-    frameAssembly.add(lampHood);
-
-    const lampFilament = new THREE.Mesh(
-      track(new THREE.BoxGeometry(width * 0.56, 0.008, 0.012)),
-      mats.warmEmissive
-    );
-    lampFilament.position.set(0, height / 2 + frameThick + 0.016, 0.11);
-    frameAssembly.add(lampFilament);
-  }
-
-  // 8. Miniature engraved dark-and-gold price plaque seated cleanly on the front base
-  const plaqueTex = track(createPlaqueTexture(product.price, product.badge, maxAnisotropy));
-  const plaqueMat = track(
-    new THREE.MeshStandardMaterial({
-      map: plaqueTex,
-      emissiveMap: plaqueTex,
-      emissive: new THREE.Color(0xfff1d4),
-      emissiveIntensity: 0.3,
-      roughness: 0.35,
-      metalness: 0.18,
-    })
-  );
-  const plaqueW = Math.min(0.46, width * 0.42);
-  const plaque = new THREE.Mesh(track(new THREE.PlaneGeometry(plaqueW, 0.085)), plaqueMat);
-  plaque.position.set(0, baseHeight * 0.62, 0.108);
-  plaque.rotation.x = -0.22;
-  group.add(plaque);
-
-  // 9. Generous invisible collision collider on layer 1 for effortless mobile tapping
-  const colliderGeo = track(
-    new THREE.BoxGeometry(width + 0.16, baseHeight + riserH + height + 0.16, 0.36)
-  );
-  const colliderMat = track(new THREE.MeshBasicMaterial({ visible: false }));
-  const collider = new THREE.Mesh(colliderGeo, colliderMat);
-  collider.position.set(0, centerY, 0.02);
-  collider.layers.set(1);
-  collider.userData.productId = product.id;
-  collider.userData.aisleId = product.aisleId;
-  group.add(collider);
-
   return {
     group,
+    facingPivot,
     collider,
-    hotspotLocalOffset: new THREE.Vector3(0, centerY - height * 0.34, 0.09),
+    hotspotLocalOffset,
     loadTexture,
     ownDisposables,
   };

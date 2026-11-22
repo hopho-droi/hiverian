@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
-import { ArrowRight, Box, Star, X } from 'lucide-react';
+import { ArrowRight, Box, ShoppingBag, Star, X } from 'lucide-react';
 import {
   AMAZON_LEGAL_DISCLOSURE,
+  AMAZON_STORE_URL,
   BRAND_NAME,
   CATALOG,
   SEASONAL_BANNER_LABEL,
@@ -67,7 +68,7 @@ export const CatalogOverlay: React.FC<CatalogOverlayProps> = ({
         {/* Navigation rayons bureau */}
         <nav
           aria-label="Rayons du catalogue"
-          className="hidden items-center gap-6 lg:flex"
+          className="no-scrollbar hidden max-w-[62vw] items-center gap-4 overflow-x-auto lg:flex xl:gap-5"
         >
           {CATALOG.map((aisle) => {
             const isActive = aisle.slug === activeAisleSlug;
@@ -123,7 +124,7 @@ export const CatalogOverlay: React.FC<CatalogOverlayProps> = ({
       {/* Grille produit scrollable */}
       <main className="luxury-scroll safe-bottom-sheet flex-1 overflow-y-auto px-4 pt-6 sm:px-8 sm:pt-8">
         <div className="mx-auto max-w-[1240px]">
-          <div className="mb-8 flex flex-col justify-between gap-3 border-b border-[#E5B85B]/25 pb-6 md:flex-row md:items-end">
+          <div className="mb-8 flex flex-col justify-between gap-4 border-b border-[#E5B85B]/25 pb-6 md:flex-row md:items-end">
             <div>
               <p className="text-xs font-medium text-[#E5B85B]">
                 Rayon {activeAisle.indexLabel} · {activeAisle.products.length} pièces sélectionnées
@@ -135,6 +136,17 @@ export const CatalogOverlay: React.FC<CatalogOverlayProps> = ({
                 {activeAisle.subtitle}
               </p>
             </div>
+
+            <a
+              href={AMAZON_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+              className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 border border-[#E5B85B]/45 bg-gradient-to-r from-[#9B1B26] to-[#B91C1C] px-4 py-2.5 text-xs font-semibold tracking-wide text-[#FFF9F0] shadow-[0_6px_18px_rgba(155,27,38,0.42)] transition-all hover:brightness-110 whitespace-nowrap"
+            >
+              <ShoppingBag className="h-3.5 w-3.5 text-[#E5B85B]" aria-hidden="true" />
+              <span>Voir toute la boutique Amazon</span>
+              <ArrowRight className="h-3.5 w-3.5 text-[#E5B85B]" aria-hidden="true" />
+            </a>
           </div>
 
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">

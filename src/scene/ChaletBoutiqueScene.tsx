@@ -16,7 +16,7 @@ import {
   createWalnutPanelTexture,
 } from './textures';
 import {
-  buildProductVitrine,
+  buildProductShowcase,
   createSharedProductMaterials,
 } from './productModels';
 
@@ -28,15 +28,20 @@ export interface ChaletBoutiqueSceneProps {
 }
 
 const AISLE_SPACING = 6.8;
+const GALLERY_SPAN = CATALOG.length * AISLE_SPACING;
+const GALLERY_HALF_SPAN = GALLERY_SPAN * 0.5;
 
 function getAisleIndex(slug: AisleSlug): number {
   const idx = CATALOG.findIndex((a) => a.slug === slug);
   return idx >= 0 ? idx : 0;
 }
 
+function getAisleCenterXByIndex(idx: number): number {
+  return (idx - (CATALOG.length - 1) * 0.5) * AISLE_SPACING;
+}
+
 function getAisleCenterX(slug: AisleSlug): number {
-  const idx = getAisleIndex(slug);
-  return (idx - 2) * AISLE_SPACING;
+  return getAisleCenterXByIndex(getAisleIndex(slug));
 }
 
 // Module-scope reusable math helpers (zero GC inside animation loop)
@@ -49,6 +54,10 @@ interface ProductSceneEntry {
   product: ProductItem;
   aisleSlug: AisleSlug;
   group: THREE.Group;
+  facingPivot: THREE.Group;
+  baseRotationY: number;
+  worldX: number;
+  worldZ: number;
   collider: THREE.Mesh;
   worldAnchor: THREE.Vector3;
   focusCenter: THREE.Vector3;
@@ -206,9 +215,9 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
       keyLight.castShadow = true;
       keyLight.shadow.mapSize.set(1024, 1024);
       keyLight.shadow.camera.near = 1;
-      keyLight.shadow.camera.far = 28;
-      keyLight.shadow.camera.left = -22;
-      keyLight.shadow.camera.right = 22;
+      keyLight.shadow.camera.far = 32;
+      keyLight.shadow.camera.left = -(GALLERY_HALF_SPAN + 6);
+      keyLight.shadow.camera.right = GALLERY_HALF_SPAN + 6;
       keyLight.shadow.camera.top = 8;
       keyLight.shadow.camera.bottom = -8;
       keyLight.shadow.bias = -0.0005;
@@ -234,6 +243,12 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     const contactShadowTex = registerDisposable(createContactShadowTexture());
     const particleTex = registerDisposable(createParticleSpriteTexture());
 
+    const floorWidth = GALLERY_SPAN + 14;
+    const parquetRepeatX = Math.max(14, Math.round(floorWidth / 3.4));
+    parquetMap.repeat.set(parquetRepeatX, 5);
+    parquetRoughMap.repeat.set(parquetRepeatX, 5);
+    walnutPanelTex.repeat.set(Math.max(2, Math.round(CATALOG.length * 0.45)), 1.5);
+
     const floorMat = registerDisposable(
       new THREE.MeshStandardMaterial({
         map: parquetMap,
@@ -242,7 +257,10 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
         metalness: 0.06,
       })
     );
-    const floor = new THREE.Mesh(registerDisposable(new THREE.PlaneGeometry(48, 16)), floorMat);
+    const floor = new THREE.Mesh(
+      registerDisposable(new THREE.PlaneGeometry(floorWidth, 16)),
+      floorMat
+    );
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(0, 0, 2.2);
     floor.receiveShadow = true;
@@ -314,8 +332,9 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     );
 
     // Festive crimson velvet gallery runner bordered with champagne gold inlay strips
+    const runnerLength = GALLERY_SPAN + 4;
     const velvetRunner = new THREE.Mesh(
-      registerDisposable(new THREE.PlaneGeometry(38, 1.35)),
+      registerDisposable(new THREE.PlaneGeometry(runnerLength, 1.35)),
       crimsonVelvetMat
     );
     velvetRunner.rotation.x = -Math.PI / 2;
@@ -323,7 +342,7 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     velvetRunner.receiveShadow = true;
     scene.add(velvetRunner);
 
-    const runnerTrimGeo = registerDisposable(new THREE.PlaneGeometry(38, 0.032));
+    const runnerTrimGeo = registerDisposable(new THREE.PlaneGeometry(runnerLength, 0.032));
     [1.88, 3.22].forEach((rz) => {
       const trim = new THREE.Mesh(runnerTrimGeo, brassTrimMat);
       trim.rotation.x = -Math.PI / 2;
@@ -332,8 +351,9 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     });
 
     // Continuous back structural wall & baseboard
+    const backWallLength = GALLERY_SPAN + 12;
     const mainBackWall = new THREE.Mesh(
-      registerDisposable(new THREE.BoxGeometry(46, 5.2, 0.3)),
+      registerDisposable(new THREE.BoxGeometry(backWallLength, 5.2, 0.3)),
       walnutWallMat
     );
     mainBackWall.position.set(0, 2.6, -1.72);
@@ -341,14 +361,14 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     scene.add(mainBackWall);
 
     const baseboard = new THREE.Mesh(
-      registerDisposable(new THREE.BoxGeometry(46, 0.2, 0.14)),
+      registerDisposable(new THREE.BoxGeometry(backWallLength, 0.2, 0.14)),
       darkTimberMat
     );
     baseboard.position.set(0, 0.1, -1.52);
     scene.add(baseboard);
 
     const ceiling = new THREE.Mesh(
-      registerDisposable(new THREE.PlaneGeometry(48, 16)),
+      registerDisposable(new THREE.PlaneGeometry(floorWidth, 16)),
       darkTimberMat
     );
     ceiling.rotation.x = Math.PI / 2;
@@ -356,9 +376,9 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     scene.add(ceiling);
 
     const beamGeo = registerDisposable(new THREE.BoxGeometry(0.32, 0.34, 12.5));
-    for (let i = -3; i <= 3; i++) {
+    for (let i = -1; i <= CATALOG.length; i++) {
       const beam = new THREE.Mesh(beamGeo, darkTimberMat);
-      beam.position.set(i * AISLE_SPACING + AISLE_SPACING * 0.5, 4.5, 1.8);
+      beam.position.set((i - CATALOG.length * 0.5) * AISLE_SPACING, 4.5, 1.8);
       scene.add(beam);
     }
 
@@ -380,7 +400,7 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
         panoTex.colorSpace = THREE.SRGBColorSpace;
         panoTex.anisotropy = maxAnisotropy;
         panoTex.wrapS = THREE.MirroredRepeatWrapping;
-        panoTex.repeat.set(2, 1);
+        panoTex.repeat.set(Math.max(2, Math.ceil(CATALOG.length / 2.5)), 1);
         panoTex.needsUpdate = true;
         registerDisposable(panoTex);
         panoramaCache.set(url, panoTex);
@@ -394,8 +414,11 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     updatePanoramaRef.current = applyPanoramaUrl;
     applyPanoramaUrl(getAisleBySlug(activeAisleRef.current).panoramaUrl);
 
+    const vistaWidth = GALLERY_SPAN + 10;
+    const endVistaX = GALLERY_HALF_SPAN + 3.5;
+
     const oppositeVista = new THREE.Mesh(
-      registerDisposable(new THREE.PlaneGeometry(44, 9.5)),
+      registerDisposable(new THREE.PlaneGeometry(vistaWidth, 9.5)),
       panoMat
     );
     oppositeVista.position.set(0, 3.0, 9.8);
@@ -404,30 +427,31 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
 
     const endVistaGeo = registerDisposable(new THREE.PlaneGeometry(14, 7.5));
     const leftEndVista = new THREE.Mesh(endVistaGeo, panoMat);
-    leftEndVista.position.set(-20.5, 2.7, 2.2);
+    leftEndVista.position.set(-endVistaX, 2.7, 2.2);
     leftEndVista.rotation.y = Math.PI / 2;
     scene.add(leftEndVista);
 
     const rightEndVista = new THREE.Mesh(endVistaGeo, panoMat);
-    rightEndVista.position.set(20.5, 2.7, 2.2);
+    rightEndVista.position.set(endVistaX, 2.7, 2.2);
     rightEndVista.rotation.y = -Math.PI / 2;
     scene.add(rightEndVista);
 
     const windowRail = new THREE.Mesh(
-      registerDisposable(new THREE.BoxGeometry(44, 0.72, 0.24)),
+      registerDisposable(new THREE.BoxGeometry(vistaWidth, 0.72, 0.24)),
       darkTimberMat
     );
     windowRail.position.set(0, 0.36, 8.6);
     scene.add(windowRail);
 
     const mullionGeo = registerDisposable(new THREE.BoxGeometry(0.24, 4.7, 0.24));
-    for (let x = -18; x <= 18; x += 6) {
+    const mullionHalf = Math.ceil(GALLERY_HALF_SPAN / 6) * 6;
+    for (let x = -mullionHalf; x <= mullionHalf; x += 6) {
       const mullion = new THREE.Mesh(mullionGeo, darkTimberMat);
       mullion.position.set(x, 2.35, 8.6);
       scene.add(mullion);
     }
 
-    // Build all 5 architectural alcoves + automatically placed product vitrines
+    // Build all architectural alcoves + automatically placed product cutouts
     const pilasterGeo = registerDisposable(new THREE.BoxGeometry(0.46, 4.5, 0.74));
     const brassStripVGeo = registerDisposable(new THREE.BoxGeometry(0.028, 3.95, 0.036));
     const credenzaGeo = registerDisposable(new THREE.BoxGeometry(5.1, 1.52, 0.76));
@@ -441,6 +465,9 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     const contactPlaneGeo = registerDisposable(new THREE.PlaneGeometry(1.85, 1.85));
 
     const vitrineMats = createSharedProductMaterials(isSoftwareGl);
+    if (vitrineMats.contactShadow.map) {
+      registerDisposable(vitrineMats.contactShadow.map);
+    }
     Object.values(vitrineMats).forEach((m) => registerDisposable(m));
 
     const aisleGlowLights: THREE.PointLight[] = [];
@@ -448,7 +475,7 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     const clickableColliders: THREE.Object3D[] = [];
 
     CATALOG.forEach((aisle, aisleIdx) => {
-      const cx = (aisleIdx - 2) * AISLE_SPACING;
+      const cx = getAisleCenterXByIndex(aisleIdx);
       const alcoveGroup = new THREE.Group();
       alcoveGroup.position.set(cx, 0, 0);
       scene.add(alcoveGroup);
@@ -578,18 +605,17 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
       alcoveGroup.add(alcoveLight);
       aisleGlowLights.push(alcoveLight);
 
-      // Automatic harmonious vitrine & hotspot placement for all products in this aisle
+      // Automatic harmonious cutout placement directly on the wooden tables & shelves
       aisle.products.forEach((product) => {
-        const built = buildProductVitrine(
+        const built = buildProductShowcase(
           product,
           vitrineMats,
           textureLoader,
-          maxAnisotropy,
-          isSoftwareGl
+          maxAnisotropy
         );
         built.ownDisposables.forEach((d) => registerDisposable(d));
 
-        const { x, y, z, rotationY = 0, height: vitrineH } = product.shelfSlot;
+        const { x, y, z, rotationY = 0, height: slotH } = product.shelfSlot;
         built.group.position.set(x, y, z);
         built.group.rotation.y = rotationY;
         alcoveGroup.add(built.group);
@@ -602,7 +628,7 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
 
         const focusCenter = new THREE.Vector3(
           cx + x,
-          y + vitrineH * 0.54 + 0.08,
+          y + slotH * 0.46,
           z + 0.04
         );
 
@@ -610,6 +636,10 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
           product,
           aisleSlug: aisle.slug,
           group: built.group,
+          facingPivot: built.facingPivot,
+          baseRotationY: rotationY,
+          worldX: cx + x,
+          worldZ: z,
           collider: built.collider,
           worldAnchor,
           focusCenter,
@@ -648,7 +678,7 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
     // =========================================================================
     // SUBTLE 3D DRIFTING SNOW / GOLDEN WINTER PARTICLES
     // =========================================================================
-    const particleCount = isMobileDevice ? 120 : 220;
+    const particleCount = isMobileDevice ? 150 : 280;
     const particlePositions = new Float32Array(particleCount * 3);
     const particleSpeeds = new Float32Array(particleCount);
     const particlePhases = new Float32Array(particleCount);
@@ -659,8 +689,9 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
       return (pSeed - 1) / 2147483646;
     };
 
+    const particleSpanX = GALLERY_SPAN + 8;
     for (let i = 0; i < particleCount; i++) {
-      particlePositions[i * 3] = (pRand() - 0.5) * 40;
+      particlePositions[i * 3] = (pRand() - 0.5) * particleSpanX;
       particlePositions[i * 3 + 1] = 0.25 + pRand() * 4.25;
       particlePositions[i * 3 + 2] = -1.1 + pRand() * 8.0;
       particleSpeeds[i] = 0.1 + pRand() * 0.16;
@@ -926,6 +957,26 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
 
       controls.update();
 
+      // Gentle Y-axis cylindrical facing for active aisle 2.5D cutouts so objects never look paper-thin during orbit
+      const currentSlug = activeAisleRef.current;
+      for (let i = 0; i < productEntries.length; i++) {
+        const entry = productEntries[i];
+        if (entry.aisleSlug !== currentSlug) continue;
+        const dxCam = camera.position.x - entry.worldX;
+        const dzCam = Math.max(0.8, camera.position.z - entry.worldZ);
+        const targetYaw = THREE.MathUtils.clamp(
+          Math.atan2(dxCam, dzCam) - entry.baseRotationY,
+          -0.36,
+          0.36
+        );
+        entry.facingPivot.rotation.y = THREE.MathUtils.damp(
+          entry.facingPivot.rotation.y,
+          targetYaw,
+          7,
+          dt
+        );
+      }
+
       if (!prefersReducedMotion) {
         const posAttr = particleGeo.attributes.position as THREE.BufferAttribute;
         const arr = posAttr.array as Float32Array;
@@ -1012,7 +1063,7 @@ export const ChaletBoutiqueScene: React.FC<ChaletBoutiqueSceneProps> = ({
           </h2>
           <p className="mt-3 text-sm leading-relaxed text-[#D4CFC4]">
             Votre navigateur ne permet pas d’afficher l’espace 3D WebGL. Parcourez
-            l’ensemble de nos cinq rayons en mode catalogue haute définition.
+            l’ensemble de nos {CATALOG.length} rayons en mode catalogue haute définition.
           </p>
           <button
             type="button"
