@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="spruceBg" cx="50%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#144437" />
+      <stop offset="65%" stop-color="#0B2B22" />
+      <stop offset="100%" stop-color="#061914" />
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F7DC9A" />
+      <stop offset="50%" stop-color="#E5B85B" />
+      <stop offset="100%" stop-color="#B98732" />
+    </linearGradient>
+    <linearGradient id="crimsonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B91C1C" />
+      <stop offset="100%" stop-color="#87141E" />
+    </linearGradient>
+  </defs>
+
+  <!-- Full-bleed deep spruce backdrop -->
+  <rect width="512" height="512" fill="url(#spruceBg)" />
+
+  <!-- Outer hairline champagne-gold frame -->
+  <rect x="44" y="44" width="424" height="424" rx="48" fill="none" stroke="url(#goldGrad)" stroke-width="5" stroke-opacity="0.72" />
+
+  <!-- Minimalist geometric Christmas pine star emblem inside 80% safe zone -->
+  <g transform="translate(256, 256)">
+    <!-- Soft crimson ribbon medallion behind emblem -->
+    <circle cx="0" cy="10" r="118" fill="url(#crimsonGrad)" fill-opacity="0.28" stroke="url(#goldGrad)" stroke-width="2.5" stroke-opacity="0.55" />
+
+    <!-- North star at peak -->
+    <path d="M0,-126 L10,-98 L38,-88 L10,-78 L0,-50 L-10,-78 L-38,-88 L-10,-98 Z" fill="url(#goldGrad)" />
+
+    <!-- Layered architectural spruce silhouette -->
+    <path d="M0,-58 L64,12 L28,12 L84,78 L36,78 L102,136 L-102,136 L-36,78 L-84,78 L-28,12 L-64,12 Z" fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-linejoin="round" />
+
+    <!-- Subtle golden ornament dots -->
+    <circle cx="0" cy="8" r="7" fill="#FFF9F0" />
+    <circle cx="-26" cy="54" r="6" fill="url(#goldGrad)" />
+    <circle cx="28" cy="54" r="6" fill="url(#goldGrad)" />
+    <circle cx="-46" cy="108" r="6.5" fill="#B91C1C" stroke="#E5B85B" stroke-width="2" />
+    <circle cx="0" cy="104" r="7.5" fill="url(#goldGrad)" />
+    <circle cx="46" cy="108" r="6.5" fill="#B91C1C" stroke="#E5B85B" stroke-width="2" />
+  </g>
+</svg>

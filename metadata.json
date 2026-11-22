@@ -1,0 +1,8 @@
+{
+  "name": "Maison Hiveria — Boutique 3D de Noël",
+  "description": "Boutique virtuelle 3D immersive dédiée à la décoration de Noël haut de gamme, organisée en cinq rayons accessibles par URL.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
